@@ -55,7 +55,7 @@ We assume the volume with the configuration data is called
 `ovpn-data-mf2c` as recommended by the upstream porovider.
 
 ```
-docker run -v ovpn-data-mf2c:/etc/openvpn -p 1194:1194/udp --cap-add=NET_ADMIN kylemanna/openvpn:latest
+docker run -v ovpn-data-mf2c:/etc/openvpn -p 1194:1194/udp --name vpnserver --cap-add=NET_ADMIN kylemanna/openvpn:latest
 ```
 
 # Checking status
