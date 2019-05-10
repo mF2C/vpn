@@ -90,6 +90,7 @@ if [ \! -e server.crt ] || [ \! -e server.key ] ; then
 	#    && curl -d
 	echo >&2 "This code does not yet work; the remote server sends an error message"
     exit 2
+    fi
 fi
 
 
