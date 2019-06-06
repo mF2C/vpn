@@ -12,7 +12,8 @@ fi
 
 
 # Our (common) name; if not set, use the hostname
-# TODO: maybe pick LSB part of the IP addr
+# TODO: maybe pick LSB part of the IP addr and use that as part of
+# the name
 if [ "x${CN}" = "x" ] ; then
     CN=`hostname`
     if [ "x${CN}" = "x" ] ; then
@@ -44,6 +45,8 @@ fi
 # there, or should we try to contact the CAU client?  In a production
 # environment they should always be there, but for a test/integration
 # setup, it might make sense to have a stab at creating them.
+#
+# As a corollary, the /pkidata should then be writeable.
 
 if [ "x${PKIDATA}" = "x" ]; then
     PKIDATA="/pkidata"
@@ -74,22 +77,65 @@ fi
 if [ \! -e server.crt ] || [ \! -e server.key ] ; then
 
     echo >&2 Warning: Client credentials not found in ${PKIDATA}
-    if [ "x${CAU_URL}" = "x" ]; then
-	echo >&2 Error no CAU endpoint defined and no credentials available - exiting
-	exit 2
 
+    # Generate a CSR.  For some reason, the client is called 'server'
+    # Also note these are to be PEM formatted, not DER (despite the names)
+    CSRFILE="${PKIDATA}/server.csr"
+    CRTFILE="${PKIDATA}/server.crt"
+    
+    # XXX Should really use elliptic curve but currently RSA is supported
+    # We don't specify a config but hopefully it should work...
+    if openssl req -newkey rsa:1024 -nodes -keyout "${PKIDATA}/server.key" -out "${CSRFILE}" -subj "/CN=${CN}" ; then
+	:
     else
+	echo >&2 Fatal error generating CSR
+	exit 2
+    fi
 
-	# Note the CAU_URL is not actually a URL
-	CAU_ENDPOINT="https://${CAU_URL}/certauths/rest/it2untrustca"
+    CERT_OK=0
 
-	# Attempt to do our CAU client stuff, albeit limited to the local credential
-	# ... useful for testing at least.  Assumes OpenSSL is available and uses
-	# whatever is the default config (fingers crossed...)
-	#openssl req -newkey rsa:1024 -keyout client.key -nodes -out client.csr -subj "/CN=${CN}" \
-	#    && curl -d
-	echo >&2 "This code does not yet work; the remote server sends an error message"
-    exit 2
+    if [ "x${CAU_URL}" = "x" ]; then
+	echo >&2 Error no CAU endpoint defined and no credentials available
+	if [ "x${CA_ENDPOINT}" = "x" ]; then
+	    echo >&2 No CA endpoint defined either... this is fatal: exiting
+	    exit 2
+	fi
+	# CA is tried below if CERT_OK stays 0
+    else
+	# Note the CAU_URL is not actually a URL; it is host:port
+	# This code might work for the CAU
+	if openssl s_client -connect "${CAU_URL}" -CAfile "${PKIDATA}/trustca.pem" -verify_return_error < ${CSRFILE} > "${PKIDATA}/server.crt" ; then
+	    # Check that it actually worked...
+	    if openssl verify -CAfile "${PKIDATA}/fogca.pem" "${CRTFILE}" ; then
+		CERT_OK=1
+	    else
+		echo >&2 "Failed to get certificate from CAU; trying CA directly"
+	    fi
+	else
+	    echo >&2 "Failed to connect and get certificate from CAU; trying CA directly"
+	fi
+    fi				# end CAU_URL
+
+    if ! expr $CERT_OK ; then
+	if [ "x${CA_ENDPOINT}" = "x" ]; then
+	    echo >&2 Client credentials are needed but no CA endpoint specified
+	    exit 2
+	fi
+	# BUG BUG BUG note the format of the POST and bypassing the server check
+	if curl -k --data-binary "@${CSRFILE}" -H "Content-type: text/plain" "${CA_ENDPOINT}" > "${CRTFILE}" ; then
+	    CERT_OK=1
+	else
+	    echo >&2 Failed to contact the CA endpoint
+	    exit 2
+	fi
+    fi
+    # Now re-check the certificate
+    if openssl verify -CAfile "${PKIDATA}/fogca.pem" "${CRTFILE}" ; then
+	:
+    else
+	echo >&2 "Failed to validate certificate from Fog CA (wrong endpoint or mismatch, or issuance failed)"
+	exit 2
+    fi				# end ! CERT_OK
 fi
 
 
@@ -167,13 +213,13 @@ EOF
 # fi
 
 # Finally, launch openvpn client (as a daemon, by default)
-if [ "x${VPN_DAEMON}" = "x" || "x${VPN_DAEMON}" = "xTRUE" ] ; then
+if [ "x${VPN_DAEMON}" = "x" ] || [ "x${VPN_DAEMON}" = "xTRUE" ] ; then
     DAEMON="--daemon"
 else
     DAEMON=""
 fi
 
-# This needs more checking because the daemon may fail to launch
+# BUG This needs more checking because the daemon may fail to launch
 
 openvpn --config client.ovpn ${DAEMON}
 

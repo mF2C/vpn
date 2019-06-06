@@ -73,4 +73,15 @@ The script makes use of the following environment variables:
 | CAU_URL | no | CAU endpoint | no default |
 | VPN_DAEMON | no | Whether to run the client as a Daemon | "TRUE" |
 | PKIDATA | no | Location/mountpoint of client credentials | /pkidata |
+| CA_ENDPOINT | no | Endpoint for (fog) CA | no default |
 
+Note that the CAU_URL and CA_ENDPOINT are needed only if the client
+credentials are not present by the time the script runs.  The client
+will then attempt to create a Certificate Signing Request (CSR) and
+submit it first to the CAU at the CAU_URL (which despite the name is
+not a URL, it's a host address and port, as in "127.0.0.1:40000").  If
+that fails, it will try to contact the CA directly, POSTing the CSR to
+the endpoint provided.
+
+Since this is the client, the certificate it uses should be signed by
+the Fog CA (aka "untrust" or "untrusted").

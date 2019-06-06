@@ -1,0 +1,48 @@
+# The following file will set up a standalone VPN server and a client;
+# and it will connect the client to the server (well, hopefully).
+# The client will be connected to the VPN but the connection will
+# obviously only be useful for a process inside the client's container.
+# The server is designed to bootstrap like a production mF2C VPN server.
+#
+# Still found the long syntax for volumes b0rken (and incorrect
+# documentation)
+# https://github.com/docker/compose/issues/5092
+# https://github.com/moby/moby/issues/34643
+
+version: '3'
+services:
+  vpnserver:
+    build: ./vpnserver
+    cap_add:
+    - NET_ADMIN
+    image: mf2c/vpnserver:latest
+    container_name: vpnserver
+    ports:
+    - "1194:1194/udp"
+    restart: always
+    networks:
+    - vpnbridge
+    volumes:
+    - vpnconfig:/etc/openvpn
+    logging:
+      driver: "syslog"
+  vpnclient:
+    build: ./vpnclient
+    image: mf2c/vpntest
+    depends_on:
+    - vpnserver
+    environment:
+    - VPN_DAEMON=FALSE
+    - "CA_ENDPOINT=https://213.205.14.13:54443/certauths/rest/it2untrustedca"
+    cap_add:
+    - NET_ADMIN
+    networks:
+    - vpnbridge
+    volumes:
+    - ./pkidata:/pkidata
+volumes:
+  vpnconfig:
+networks:
+  vpnbridge:
+    driver: bridge
+
