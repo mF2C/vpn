@@ -110,6 +110,7 @@ if [ \! -e servercert.pem ] ; then
     if curl -k --cacert trustca.pem -d "CN=${CN}" -H "Content-type: text/plain" -o server.tmp "${TRUSTCA}" ; then
 	sed '/^-----BEGIN CERTIFICATE/,/^-----END CERTIFICATE/p;d' <server.tmp >servercert.pem
 	sed '/^-----BEGIN.*PRIVATE KEY/,/^-----END.*PRIVATE KEY/p;d' <server.tmp >serverkey.pem
+	chmod 600 serverkey.pem
 	rm server.tmp
     else
 	echo >&2 Something went wrong getting certificates from the CA
@@ -136,14 +137,20 @@ else
     exit 2
 fi
 
-cd ${OLDDIR}
-# Server set up script
 
 if [ \! -e dh.pem ] ; then
     echo >&2 Generating DH parameters - this may take a bit of time
-    openssl dhparam -out dh.pem 2048
+    if ! openssl dhparam -out dh.pem 2048 ; then
+	echo >&2 Generation of DH parameters failed
+	exit 2
+    fi
 fi
 
-# exit 0
+if ! openssl dhparam -check -in dh.pem ; then
+    echo >&2 DH parameter validation check failed
+    exit 2
+fi
+
+# Now hand over to the upstream script
 
 exec ovpn_run
