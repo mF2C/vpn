@@ -21,7 +21,7 @@ fi
 # PKI and the infrastructure PKI.  The VPN server should have a certificate from
 # the latter.
 
-if [ "x${VPNSERVER_TRUSTANCHORS}" = "x"]; then
+if [ "x${VPNSERVER_TRUSTANCHORS}" = "x" ]; then
     VPNSERVER_TRUSTANCHORS="${VPNSERVER_CONFIGDIR}/pki"
 fi
 
@@ -59,56 +59,91 @@ OLDDIR=`pwd`
 # fi
 
 
+if [ \! -d ${VPNSERVER_TRUSTANCHORS} ]; then
+    if ! mkdir -p ${VPNSERVER_TRUSTANCHORS} ; then
+	echo >&2 Failed to create "${VPNSERVER_TRUSTANCHORS}"
+	exit 2
+    fi
+fi
+
+if ! cd ${VPNSERVER_TRUSTANCHORS} ; then
+    echo >&2 Failed to CD to "${VPNSERVER_TRUSTANCHORS}"
+    exit 2
+fi
+
+
 # Following upstream, we put the credential into the server's
 # /etc/openvpn directory, which means they get saved along with the
 # rest of the configuration if the config directory is a mounted
 # volume (as is recommended).  This is better than using the /pkidata
 # because that location is used by the client, and if, for some
 # reason, a client credential is made available on the server, it
-# might clobber the server credential.
+# might clobber the server credential.  Or vice versa.
 
-if [ \! -e ${VPNSERVER_TRUSTANCHORS}/vpnserver.crt ] ; then
+
+if [ \! -e servercert.pem ] ; then
     # if we are a server, we should be able to reach the CA... (in the cloud)
     # However, if we don't need it, it doesn't matter if the env var is not set
     if [ "x${TRUSTCA}" = "x" ]; then
-	if [ "x${TRUSTEDCA" = "x"]; then
-	    echo >&2 TRUSTCA environment variable not set
+	if [ "x${TRUSTEDCA}" = "x" ]; then
+	    echo >&2 Neither TRUSTCA nor TRUSTEDCA environment variable is set
 	    exit 1
 	else
 	    TRUSTCA="${TRUSTEDCA}"
 	fi
     fi
 
+    if touch server.tmp ; then
+	rm server.tmp
+    else
+	echo >&2 Cannot write to `pwd` and no credential available
+	exit 2
+    fi
+
+    
     # BUG BUG BUG Note the presence of the -k switch which says to turn off security checks.
     # This is because the current server (deployment) has a certificate from the wrong CA
     # BUG BUG BUG
 
-    curl -k -s --cacert trustca.pem -d CN="${CN}" -H "Content-type: text/plain" -o server.tmp "${TRUSTCA}"
-    sed '/^-----BEGIN CERTIFICATE/,/^-----END CERTIFICATE/p;d' <server.tmp >server.crt
-    sed '/^-----BEGIN.*PRIVATE KEY/,/^-----END.*PRIVATE KEY/p;d' <server.tmp >server.key
-    rm server.tmp
-fi
+    echo >&2 Getting credentials from web services endpoint "${TRUSTCA}"
+
+    if curl -k --cacert trustca.pem -d "CN=${CN}" -H "Content-type: text/plain" -o server.tmp "${TRUSTCA}" ; then
+	sed '/^-----BEGIN CERTIFICATE/,/^-----END CERTIFICATE/p;d' <server.tmp >servercert.pem
+	sed '/^-----BEGIN.*PRIVATE KEY/,/^-----END.*PRIVATE KEY/p;d' <server.tmp >serverkey.pem
+	rm server.tmp
+    else
+	echo >&2 Something went wrong getting certificates from the CA
+	if [ -e server.tmp ] ; then
+	    echo >&2 "====Here's what we got:"
+	    cat >&2 server.tmp
+	    echo >&2 "====End of curl output"
+	fi
+	exit 2
+    fi				# curl
+fi				# ! -e servercert.pem
 
 # Now check if it worked (or, if credentials were already there, if they are correct)
-if openssl verify --CAfile trustca.pem server.crt ; then
+if openssl verify --CAfile trustca.pem servercert.pem ; then
     # Now check that the key and the certificate match (this construction requires bash)
-    if diff -qs <(openssl x509 -pubkey -noout -in server.crt) <(openssl rsa -pubout -in server.key) ; then
+    if diff -qs <(openssl x509 -pubkey -noout -in servercert.pem) <(openssl rsa -pubout -in serverkey.pem) ; then
 	:
     else
 	echo >&2 Server and private key mismatch, or private key encrypted
 	exit 2
     fi
 else
-    echo >&2 server key issued from unknown or inappropriate CA
+    echo >&2 missing server key or issued from unknown or inappropriate CA
     exit 2
 fi
 
 cd ${OLDDIR}
 # Server set up script
 
-if [ \! -e "${VPNSERVER_TRUSTANCHORS}/dh.pem" ] ; then
+if [ \! -e dh.pem ] ; then
     echo >&2 Generating DH parameters - this may take a bit of time
-    openssl dhparam -out "${VPNSERVER_TRUSTANCHORS}/dh.pem" 2048
+    openssl dhparam -out dh.pem 2048
 fi
 
-exit 0
+# exit 0
+
+exec ovpn_run

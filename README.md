@@ -1,30 +1,14 @@
-# vpn FOR Mf2c #
+# VPN server for mF2C
 
-This directory contains server and client code for VPN in mF2C.  The
-server uses the infrastructure PKI and the client the fog (sometimes
-known as "untrust").  Thus, each has the CA certificate of each other;
-these are currently committed with the source code due to a lack of
-trust anchor distribution mechanism.
 
-# What is here? #
+## Establishing credentials for authentication ##
 
-There are two sub-components in this repository; the VPN server and a
-VPN client.  Both can be deployed (together) with a `docker-compose`
-file.
+Note that the server and its clients have *distinct* PKIs: the server is using the trusted/infrastructure PKI whereas the clients are using the fog PKI (previously known as "untrust").  Thus, the server needs to trust the client's CA certificate, whereas the client needs to trust the server's.  The server is bootstrapped with credentials directly from the CA, whereas the clients are expected to have certificates through the CA gateway, the CAU, as it will not in general have direct access to the CA.
 
-The vpnclient presented here is intended only for testing, because
-you'd need to `exec` into the container to access the VPN.  In a
-production environment, you would probably only need the server, and
-install the client into whichever container would need to access VPN.
-Please see the client documentation for more information.
+In a production environment, it is expected that by the time the VPN client is launched, the client certificates are already present (in the /pkidata directory/mount point).  For testing purposes, it is necessary to either depend on the cau-client component, or to call out directly to the CAU.
 
-# Requirements/Assumptions #
+In addition to the certificates, a shared secret is used.  This secret is generated when the server is configured, and ensures that only authorised (as opposed to authenticated) clients can connect, the idea being that authorised clients have the shared secret shared  with them (the process for doing so needs to be out of band, except for the tests included here.)  In particular, the server generates the secret itself (during bootstrap), so needs to be generated before the clients.
 
-Both client and server assume the existence of the PKI(s) for mF2C,
-the server making use of the infrastructure PKI (sometimes known as
-"trusted") and the client making use of the Agent or fog PKI
-(sometimes known as "untrusted").  In a production environment,
-credentials should already be present in the default locations by the
-time a client runs.  Both client and server will make an effort to
-bootstrap themselves against the CA endpoints if their credentials are
-missing.
+## Upstream ##
+
+The upstream image used here is [OpenVPN](https://hub.docker.com/r/kylemanna/openvpn).  

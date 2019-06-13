@@ -66,6 +66,7 @@ client, or configured in the `docker-compose.yml` file.
 # Environment #
 
 The script makes use of the following environment variables:
+
 | Variable      | Required? | Description | Default |
 | :--- | :---: | :--- | :--- |
 | VPNSERVER     | no		| Location of VPN server | vpnserver |
