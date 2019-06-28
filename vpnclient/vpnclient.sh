@@ -121,8 +121,8 @@ if [ \! -e server.crt ] || [ \! -e server.key ] ; then
 	    echo >&2 Client credentials are needed but no CA endpoint specified
 	    exit 2
 	fi
-	# BUG BUG BUG note the format of the POST and bypassing the server check
-	if curl -k --data-binary "@${CSRFILE}" -H "Content-type: text/plain" "${CA_ENDPOINT}" > "${CRTFILE}" ; then
+	# note the format of the POST (binary)
+	if curl --cacert "${PKIDATA}/trustca.pem" --data-binary "@${CSRFILE}" -H "Content-type: text/plain" "${CA_ENDPOINT}" > "${CRTFILE}" ; then
 	    CERT_OK=1
 	else
 	    echo >&2 Failed to contact the CA endpoint
