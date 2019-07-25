@@ -48,7 +48,7 @@ The current implemetnation assumes that client credentials have been
 generated and stored in /pkidata (which is presumably a mountpoint for
 a volume), where, for some reason, the client certificate and key are
 called server.crt and server.key, respectively.  The private key
-cannot be encrypted.
+must not be encrypted.
 
 The container should thus mount the volume with the client credentials
 on /pkidata.  Since we use these keys, there are no secrets in the
@@ -56,12 +56,28 @@ script, nor in the `.ovpn` file.  The `.ovpn` file, in fact, currently
 has the hardwired certificate of the CA that issues the server's
 credentials.
 
+If they are not available, the vpnclient will:
+
+1. If CAU_URL is set, it will contact the CAU directly, trying to
+   obtain a credential, bypassing the cau-client.
+   - Note that CAU_URL is not a URL, it is *IP*:*port*.
+2. If CA_ENDPOINT is set but CAU_URL is not, the client will aim to
+   contact the CA endpoint directly.
+3. If CAU_URL and CA_ENDPOINT are **not** set, the client will
+   loop/sleep, waiting for credentials to appear.
+   - There are no defaults for these variables (see table below).
+
+The default is that CAU_URL and CA_ENDPOINT are **not** set; as it is
+expected that in a production environment, the credentials are made
+available by the cau-client and written into the shared volume,
+`pkidata`.
+
+
 ## 3. VPN server location ##
 
 The `vpnserver` is meant to resolve to the location of the VPN server;
 conventionally, the link is provided with `--link` when starting the
 client, or configured in the `docker-compose.yml` file.
-
 
 # Environment #
 
@@ -71,7 +87,7 @@ The script makes use of the following environment variables:
 | :--- | :---: | :--- | :--- |
 | VPNSERVER     | no		| Location of VPN server | vpnserver |
 | CN   	   	   	| no |commonName for a host certificate request | hostname |
-| CAU_URL | no | CAU endpoint | no default |
+| CAU_URL | no | CAU IP/port | no default |
 | VPN_DAEMON | no | Whether to run the client as a Daemon | "TRUE" |
 | PKIDATA | no | Location/mountpoint of client credentials | /pkidata |
 | CA_ENDPOINT | no | Endpoint for (fog) CA | no default |
