@@ -25,7 +25,7 @@ services:
     networks:
     - vpnbridge
     volumes:
-    - vpnconfig:/etc/openvpn
+    - ./vpnserver/openvpn:/etc/openvpn
 #    logging:
 #      driver: "syslog"
   vpnclient:
