@@ -1,14 +1,41 @@
 #!/bin/sh
 # OpenVPN client setup and launch code for mF2C
 
+STATUS='{"status":"init","ip":""}'
+STATUSDIR=/usr/share/nginx/html/api
+STATUSFILE="${STATUSDIR}/get_vpn_ip"
+
+# mkdir -p is safe even on directories that already exist
+
+if ! mkdir -p ${STATUSDIR} ; then
+    echo >&2 Failed to create "${STATUSDIR}"
+    exit 1
+fi
+
+if ! echo "{$STATUS}" > ${STATUSFILE} ; then
+    echo >&2 Failed to write ${STATUSFILE} to ${STATUSDIR}
+    exit 1
+fi
+
+# Launch nginx - it is not launched by default, and it is helpful to
+# have it provide status updates during configuration and startup, as
+# well as after the connection.
+
+if ! /usr/sbin/nginx -c /etc/nginx/nginx.conf ; then
+    echo >&2 Failed to launch nginx server
+    # Is this fatal?  Just means the status API is not available.
+fi
 
 # We're expecting Docker Compose to resolve the server name (or --link
-# if launched manually).  The environment variable can override this
-# feature.
+# or --add-host if launched manually).  The environment variable can
+# override this feature.
 
 if [ "x" = "x${VPNSERVER}" ] ; then
     VPNSERVER=vpnserver
 fi
+
+# TODO check that vpnserver resolves
+
 
 
 # Our (common) name; if not set, use the hostname
@@ -113,6 +140,8 @@ if [ "x" = "x${CAU_URL}" ] && [ "x" = "x${CA_ENDPOINT}" ] ; then
     DELAY=0
     DELAYTICK=2
 
+    echo '{"status":"waiting for cred","ip":""}' >$STATUSFILE
+
     # We have no means of getting a credential ourselves, so must
     # trust external parties to deliver it for us into pkidata.
     while [ \! -e server.crt ] || [ \! -e server.key ] ; do
@@ -126,9 +155,14 @@ elif [ \! -e server.crt ] || [ \! -e server.key ] ; then
 
     echo >&2 Warning: Client credentials not found in ${PKIDATA} but CAU_URL or CA_ENDPOINT suggests to try rekeying
 
-    # Please excuse the inelegant writing TRUSTCA ourselves, if it's not already present.
-    # It is needed to check the CAU and CA endpoints.  (It is also needed to check the
-    # VPN server but this is done by the one in the OVPN file.
+    # Please excuse the inelegant writing TRUSTCA ourselves, if it's
+    # not already present.  The project has no trust anchor
+    # distribution -- this would need customising in an independent
+    # deployment.
+    #
+    # The trust anchor is needed to check the CAU and CA endpoints.
+    # It is also needed to check the VPN server but this is done by
+    # the one in the OVPN file.
 
     if [ \! -e trustca.pem ] ; then
 	# Please excuse the ugly construction; we're in a shell that does not
@@ -215,6 +249,7 @@ fi
 
 # At this point we should have server.crt and server.key
 echo >&2 "INFO Credentials ready; running credentials checks"
+echo '{"status":"checking","ip":""}' > ${STATUSFILE}
 
 # Now re-check the certificate
 if openssl verify -CAfile fogca.pem server.crt ; then
@@ -317,20 +352,34 @@ EOF
 
 echo >&2 "INFO OVPN created; launching client"
 
-# Finally, launch openvpn client (as a daemon, by default)
-if [ "x${VPN_DAEMON}" = "x" ] || [ "x${VPN_DAEMON}" = "xTRUE" ] ; then
-    DAEMON="--daemon"
-else
-    DAEMON=""
+STATUS='{"status":"connecting","ip":""}'
+echo $STATUS > "${STATUSFILE}"
+
+if ! openvpn --config client.ovpn --daemon ; then
+    echo '{"status":"failed","ip":""}' > "${STATUSFILE}"
+    exit 1
 fi
 
-# BUG This needs more checking because the daemon may fail to launch
+# Now we try to get the IP address
+# It could still loop forever if something goes wrong...?
 
-openvpn --config client.ovpn ${DAEMON}
+while ! ip addr show tun0 >/dev/null 2>&1
+do sleep 1
+done
 
-# if [ $? > 0 ] ; then
-#     echo >&2 Failed to launch OpenVPN client
-#     exit 5
-# fi
+# Extract the IP address.  Note that Alpine has both sed and awk,
+# albeit in tiny busybox versions.  The ip addr command has more
+# consistent output format than ifconfig
 
-#exit 0
+# Gathering data into a variable has the effect of aggregating it into
+# a single line
+M=`ip addr show tun0`
+
+IP=`echo $M|sed 's/^.*inet //;s/\/.*$//'`
+
+echo "{\"status\":\"connected\",\"ip\":\"${IP}\"}" >$STATUSFILE
+
+# And now we need to not exit
+while true
+do sleep 3600
+done

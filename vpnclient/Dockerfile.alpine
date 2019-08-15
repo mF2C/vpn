@@ -1,11 +1,15 @@
 FROM alpine:latest
-LABEL "project"="www.mf2c-project.eu" "status"="production" "maintainer"="jens.jensen@stfc.ac.uk"
+LABEL "project"="www.mf2c-project.eu" "status"="production" "maintainer"="jens.jensen@stfc.ac.uk" "mf2c.agent.type"="agent" "mf2c.agent.type"="microagent" "mf2c.component"="True"
 
 # This file is for the production mf2c/vpnclient images
-# However, we still include curl, even if it should not be needed.
-
-RUN apk add --no-cache openvpn openssl curl
-ENV VPN_DAEMON=FALSE
+# In production curl should not be needed but who knows.
+RUN apk add --no-cache openvpn openssl curl nginx
+# Just in case...
+RUN rm -f /etc/init.d/openvpn
+EXPOSE 80
+# ENV VPN_DAEMON=TRUE (default)
+# Server for the API
+ADD conf/nginx.conf /etc/nginx/nginx.conf
 ADD vpnclient.sh "/root/vpnclient.sh"
 # Alpine doesn't have bash (by default) and the script only needs sh
 CMD ["sh", "/root/vpnclient.sh"]

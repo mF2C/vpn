@@ -24,12 +24,28 @@ The exit code for the script are as follows:
 4. (Currently unused.)
 5. (Currently unused) Failure to launch VPN client
 
-The environment variable VPN_DAEMON controls whether to launch the VPN client
-as a daemon or not.  If set and the value is `TRUE`, the client is
-launched as a daemon and the script exits with status 0 (provided the
-client launched OK.)  If the value is `FALSE`, the script runs as long
-as the VPN client is running, so basically the script does not exit.
-The latter is useful for testing.
+
+## API ##
+
+As of version 1.1.1, there is an API of sorts.  It supports a HTTP GET
+request to `/api/get_vpn_ip` on port 80 (by default).
+
+What is returned is a JSON structure of the form
+
+```
+{"status":"init","ip":""}
+```
+
+The `ip` value is empty until the client is connected.
+
+The following status codes can be expected:
+
+* `init` - script is initialising its environment
+* `waiting for cred` - the client is operating in production mode and is expecting a credential to be delivered to `pkidata`
+* `checking` - the client is checking its credential
+* `connecting` - the client is in the process of connecting to a server
+* `failed` - the client has failed to connect to a server
+* `connected` - the client is connected.  This is the only status where `ip` is populated.
 
 # Building Containers #
 
@@ -88,7 +104,6 @@ The script makes use of the following environment variables:
 | VPNSERVER     | no		| Location of VPN server | vpnserver |
 | CN   	   	   	| no |commonName for a host certificate request | hostname |
 | CAU_URL | no | CAU IP/port | no default |
-| VPN_DAEMON | no | Whether to run the client as a Daemon | "TRUE" |
 | PKIDATA | no | Location/mountpoint of client credentials | /pkidata |
 | CA_ENDPOINT | no | Endpoint for (fog) CA | no default |
 

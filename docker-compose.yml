@@ -34,12 +34,13 @@ services:
     depends_on:
     - vpnserver
     environment:
-    - VPN_DAEMON=FALSE
     - "CA_ENDPOINT=https://213.205.14.13:54443/certauths/rest/it2untrustedca"
     cap_add:
     - NET_ADMIN
     networks:
     - vpnbridge
+    ports:
+    - "40013:80"
     volumes:
     - ./pkidata:/pkidata
 volumes:
