@@ -9,5 +9,6 @@ LABEL "project"="www.mf2c-project.eu" "status"="testing" "maintainer"="jens.jens
 RUN apk add --no-cache openvpn openssl curl nginx
 ADD conf/nginx.conf /etc/nginx/nginx.conf
 ADD vpnclient.sh "/root/vpnclient.sh"
+EXPOSE 1999
 # Alpine doesn't have bash (by default) and the script only needs sh
 CMD ["sh", "/root/vpnclient.sh"]

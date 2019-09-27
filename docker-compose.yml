@@ -40,7 +40,7 @@ services:
     networks:
     - vpnbridge
     ports:
-    - "40013:80"
+    - "40013:1999"
     volumes:
     - ./pkidata:/pkidata
 volumes:
