@@ -137,6 +137,51 @@ if ! cd ${PKIDATA} ; then
 fi
 
 
+# Please excuse the inelegant writing TRUSTCA ourselves, if it's
+# not already present.  The project has no trust anchor
+# distribution -- this would need customising in an independent
+# deployment.
+#
+# The trust anchor is needed to check the CAU and CA endpoints.
+# It is also needed to check the VPN server but this is done by
+# the one in the OVPN file.  Obviously we only write it if it's
+# not already there, as a last resort.
+#
+# For deployments that wish to customise these trust anchors, they
+# should pre-populate the pkidata volume and this script will of
+# course not override them.
+
+if [ \! -e trustca.pem ] ; then
+    echo >&2 WARNING Recreating TrustCA trust anchor
+    cat <<TRUSTCA >trustca.pem
+-----BEGIN CERTIFICATE-----
+MIIEBTCCAu2gAwIBAgIJAOIMpD3UIdv+MA0GCSqGSIb3DQEBCwUAMIGYMQswCQYD
+VQQGEwJFVTERMA8GA1UECAwIU2FyZGVnbmExETAPBgNVBAcMCENhZ2xpYXJpMQ0w
+CwYDVQQKDARtRjJDMRAwDgYDVQQLDAdJVDItRk9HMRYwFAYDVQQDDA1JVDItVHJ1
+c3RlZENBMSowKAYJKoZIhvcNAQkBFhtzaGlybGV5LmNyb21wdG9uQHN0ZmMuYWMu
+dWswHhcNMTkwMjExMTQzMTAzWhcNMjAxMDAzMTQzMTAzWjCBmDELMAkGA1UEBhMC
+RVUxETAPBgNVBAgMCFNhcmRlZ25hMREwDwYDVQQHDAhDYWdsaWFyaTENMAsGA1UE
+CgwEbUYyQzEQMA4GA1UECwwHSVQyLUZPRzEWMBQGA1UEAwwNSVQyLVRydXN0ZWRD
+QTEqMCgGCSqGSIb3DQEJARYbc2hpcmxleS5jcm9tcHRvbkBzdGZjLmFjLnVrMIIB
+IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9vtKkdZgQhk6FKED/NKnVtdT
+kfImBmlOLuPp8NwzqSO18ybuL64+c9WjQ6gdxjtxm1279ggqyWRV1CbtChxXESnp
+jkHMU/XAd3hET75VtE847EwkpwwWzAVH8+sGRu30PG/z19tsM2bHgDhwE8AcC41Q
+woN+oZHwBIdNmSFdtO2VnMyDqyyNFOT1/m6P0Bj8cfLOnXIFLUNJiWlYExjRImKZ
+5uoZBD9JmjRZhe1j/SAxz8R3xk6S60OIJsxLU20s2998ZbyUNi9/r4CnryrQVev4
+SyL+6Y3XAkLgmj/jsF9MvTMvil5TNZSJlL+M77PF81VtXjLi4Q1P2kwZRob3VQID
+AQABo1AwTjAdBgNVHQ4EFgQUwjb6324pNQ0hFM+KNZnTZ/nYa3cwHwYDVR0jBBgw
+FoAUwjb6324pNQ0hFM+KNZnTZ/nYa3cwDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0B
+AQsFAAOCAQEA0KguGIL06cXskbjaJk3MU17JS78fG6JE+hiNdPmpBM+V/bq1kRPN
+5TSVonR4a9H4o3dAwVwcrZAlwMVHrCpHB+bLdOZZTuO8IJaYwgG/aLRKEJvMlt5K
+HioV1O5GxglCyx4xxPzLyT2fHTWL1wZdrlLSgSnma2UWI+Do8wZ487wmX6pK6DJk
+2DDpONi88tla8rVurBZ+91gZFyAaj/74t129ycXT6X5rjWbRMe1RVBjpqZr4b1ML
+A++ebaiOOwvXKY0cQGoR7f0r5d9LkG0TGhzovzv1hWWWM6HNGxg3rWAOZBa9ADoo
+NbO16X3c++xjxi/xpbmUhZDc9tPGTcN1bA==
+-----END CERTIFICATE-----
+TRUSTCA
+fi
+
+
 # We will need a fogca certificate (previously known as untrust) if
 # it's not already present; this is to check our own credential.
 # Simple override by placing the 'fogca.pem' and 'trustca.pem' into
@@ -195,46 +240,6 @@ if [ "x" = "x${CAU_URL}" ] && [ "x" = "x${CA_ENDPOINT}" ] ; then
 elif [ \! -e server.crt ] || [ \! -e server.key ] ; then
 
     echo >&2 Warning: Client credentials not found in ${PKIDATA} but CAU_URL or CA_ENDPOINT suggests to try rekeying
-
-    # Please excuse the inelegant writing TRUSTCA ourselves, if it's
-    # not already present.  The project has no trust anchor
-    # distribution -- this would need customising in an independent
-    # deployment.
-    #
-    # The trust anchor is needed to check the CAU and CA endpoints.
-    # It is also needed to check the VPN server but this is done by
-    # the one in the OVPN file.  Obviously we only write it if it's
-    # not already there, as a last resort.
-
-    if [ \! -e trustca.pem ] ; then
-	echo >&2 WARNING Recreating TrustCA trust anchor
-	cat <<TRUSTCA >trustca.pem
------BEGIN CERTIFICATE-----
-MIIEBTCCAu2gAwIBAgIJAOIMpD3UIdv+MA0GCSqGSIb3DQEBCwUAMIGYMQswCQYD
-VQQGEwJFVTERMA8GA1UECAwIU2FyZGVnbmExETAPBgNVBAcMCENhZ2xpYXJpMQ0w
-CwYDVQQKDARtRjJDMRAwDgYDVQQLDAdJVDItRk9HMRYwFAYDVQQDDA1JVDItVHJ1
-c3RlZENBMSowKAYJKoZIhvcNAQkBFhtzaGlybGV5LmNyb21wdG9uQHN0ZmMuYWMu
-dWswHhcNMTkwMjExMTQzMTAzWhcNMjAxMDAzMTQzMTAzWjCBmDELMAkGA1UEBhMC
-RVUxETAPBgNVBAgMCFNhcmRlZ25hMREwDwYDVQQHDAhDYWdsaWFyaTENMAsGA1UE
-CgwEbUYyQzEQMA4GA1UECwwHSVQyLUZPRzEWMBQGA1UEAwwNSVQyLVRydXN0ZWRD
-QTEqMCgGCSqGSIb3DQEJARYbc2hpcmxleS5jcm9tcHRvbkBzdGZjLmFjLnVrMIIB
-IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9vtKkdZgQhk6FKED/NKnVtdT
-kfImBmlOLuPp8NwzqSO18ybuL64+c9WjQ6gdxjtxm1279ggqyWRV1CbtChxXESnp
-jkHMU/XAd3hET75VtE847EwkpwwWzAVH8+sGRu30PG/z19tsM2bHgDhwE8AcC41Q
-woN+oZHwBIdNmSFdtO2VnMyDqyyNFOT1/m6P0Bj8cfLOnXIFLUNJiWlYExjRImKZ
-5uoZBD9JmjRZhe1j/SAxz8R3xk6S60OIJsxLU20s2998ZbyUNi9/r4CnryrQVev4
-SyL+6Y3XAkLgmj/jsF9MvTMvil5TNZSJlL+M77PF81VtXjLi4Q1P2kwZRob3VQID
-AQABo1AwTjAdBgNVHQ4EFgQUwjb6324pNQ0hFM+KNZnTZ/nYa3cwHwYDVR0jBBgw
-FoAUwjb6324pNQ0hFM+KNZnTZ/nYa3cwDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0B
-AQsFAAOCAQEA0KguGIL06cXskbjaJk3MU17JS78fG6JE+hiNdPmpBM+V/bq1kRPN
-5TSVonR4a9H4o3dAwVwcrZAlwMVHrCpHB+bLdOZZTuO8IJaYwgG/aLRKEJvMlt5K
-HioV1O5GxglCyx4xxPzLyT2fHTWL1wZdrlLSgSnma2UWI+Do8wZ487wmX6pK6DJk
-2DDpONi88tla8rVurBZ+91gZFyAaj/74t129ycXT6X5rjWbRMe1RVBjpqZr4b1ML
-A++ebaiOOwvXKY0cQGoR7f0r5d9LkG0TGhzovzv1hWWWM6HNGxg3rWAOZBa9ADoo
-NbO16X3c++xjxi/xpbmUhZDc9tPGTcN1bA==
------END CERTIFICATE-----
-TRUSTCA
-    fi
 
     # Generate a CSR.  For some reason, the client is called 'server'
     # Also note these are to be PEM formatted, not DER (despite the names)
