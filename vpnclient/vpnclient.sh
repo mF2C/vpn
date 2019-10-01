@@ -17,8 +17,24 @@ PING_INTERVAL=10
 # "nextUpdate":"'`date --date "+ $PING_INTERVAL seconds" +"%Y%m%d %H:%M:%S%z"`
 
 status () (
-    echo '{"status":"'$1'","ip":"'$2'","server":"'$3'","lastUpdate":"'`date +"%Y%m%d %H:%M:%S%z"`'","stats":'$4'}' > ${STATUSFILE}
+    echo '{"status":"'$1'","ip":"'$2'","server":"'$3'","lastUpdate":"'`date +"%Y%m%d %H:%M:%S%z"`'","stats":'$4',"msg":"'$5'"}' > ${STATUSFILE}
 )
+
+stats () echo '{"good":"'$1'","noconn":"'$2'","error":"'$3'","total":"'`expr $1 + $2 + $3`'"}'
+
+
+# Continuously publish an error message, never returning
+
+fatal () (
+    PING_UGLY=0
+    while true
+    do sleep ${PING_INTERVAL}
+       PING_UGLY=`expr $PING_UGLY + 1`
+       STATS=`stats 0 0 $PING_UGLY`
+       status failed "" "" "${STATS}" "$1"
+    done
+)
+
 
 # mkdir -p is safe even on directories that already exist
 
@@ -49,6 +65,7 @@ status "Launching web svc" ""
 if ! /usr/sbin/nginx -c /etc/nginx/nginx.conf ; then
     echo >&2 Failed to launch nginx server
     # Is this fatal?  Just means the status API is not available.
+    exit 1
 fi
 
 # We're expecting Docker Compose to resolve the server name (or --link
@@ -62,12 +79,10 @@ fi
 
 if nslookup vpnserver >/dev/null 2>&1 ; then
     if ! ping -c 1 vpnserver ; then
-	echo >&2 FATAL cannot reach vpnserver
-	exit 1
+	fatal "cannot reach vpnserver ${VPNSERVER}"
     fi
 else
-    echo >&2 "FATAL 'vpnserver' does not resolve - check container config"
-    exit 1
+    fatal "'vpnserver' does not resolve - check container config"
 fi
 
 
@@ -78,7 +93,7 @@ if [ "x${CN}" = "x" ] ; then
     CN=`hostname`
     if [ "x${CN}" = "x" ] ; then
 	echo >&2 Failure getting hostname
-	exit 1
+	CN="hostname"
     fi
 fi
 
@@ -89,15 +104,13 @@ status "checking TUN" ''
 
 if [ \! -d /dev/net ] ; then
     if ! mkdir /dev/net ; then
-	echo >&2 "FATAL Unable to create /dev/net"
-	exit 1
+	fatal "unable to create /dev/net"
     fi
 fi
 
 if [ \! -c /dev/net/tun ] ; then
     if ! mknod /dev/net/tun c 10 200 ; then
-	echo >&2 "FATAL unable to create TUN device"
-	exit 1
+	fatal "unable to create TUN device"
     fi
     chmod 0666 /dev/net/tun
 fi
@@ -122,8 +135,7 @@ if [ \! -d "${PKIDATA}" ] ; then
 	# Might try a different location
 	PKIDATA="./pkidata"
 	if ! mkdir "${PKIDATA}" ; then
-	    echo >&2 FATAL Failed to locate or create any PKIDATA folder
-	    exit 2
+	    fatal "Failed to locate or create any PKIDATA folder"
 	fi
     fi
 fi
@@ -132,8 +144,7 @@ fi
 # where the keys are located.
 
 if ! cd ${PKIDATA} ; then
-    echo >&2 FATAL Error ${PKIDATA} exists but cannot CD to it
-    exit 2
+    fatal "Error ${PKIDATA} exists but cannot CD to it"
 fi
 
 
@@ -251,8 +262,7 @@ elif [ \! -e server.crt ] || [ \! -e server.key ] ; then
     if openssl req -newkey rsa:1024 -nodes -keyout "${PKIDATA}/server.key" -out "${CSRFILE}" -subj "/CN=${CN}" ; then
 	:
     else
-	echo >&2 Fatal error generating CSR
-	exit 2
+	fatal "error generating CSR"
     fi
 
     CERT_OK=0
@@ -260,8 +270,7 @@ elif [ \! -e server.crt ] || [ \! -e server.key ] ; then
     if [ "x${CAU_URL}" = "x" ]; then
 	echo >&2 Error no CAU endpoint defined and no credentials available
 	if [ "x${CA_ENDPOINT}" = "x" ]; then
-	    echo >&2 FATAL No credentials and no CA endpoint
-	    exit 2
+	    fatal "No credentials and no CA endpoint"
 	fi
 	# CA is tried below if CERT_OK stays 0
     else
@@ -282,15 +291,13 @@ elif [ \! -e server.crt ] || [ \! -e server.key ] ; then
     if ! expr $CERT_OK ; then
 	# Can't happen - the client will loop (above) waiting for credentials
 	if [ "x${CA_ENDPOINT}" = "x" ]; then
-	    echo >&2 FATAL Client credentials are needed but no CA endpoint specified
-	    exit 2
+	    fatal "Client credentials are needed but no CA endpoint specified"
 	fi
 	# note the format of the POST (binary)
 	if curl --cacert "${PKIDATA}/trustca.pem" --data-binary "@${CSRFILE}" -H "Content-type: text/plain" "${CA_ENDPOINT}" > "${CRTFILE}" ; then
 	    CERT_OK=1
 	else
-	    echo >&2 FATAL Failed to contact the CA endpoint
-	    exit 2
+	    fatal "Failed to contact the CA endpoint"
 	fi
     fi
 fi
@@ -309,16 +316,13 @@ if openssl verify -CAfile fogca.pem server.crt ; then
 	if diff -qs pubkey1.pem pubkey2.pem ; then
 	    rm -r pubkey1.pem pubkey2.pem
 	else
-	    echo >&2 FATAL Server and private key mismatch, or private key encrypted
-	    exit 2
+	    fatal "Server and private key mismatch, or private key encrypted"
 	fi
     else
-	echo >&2 FATAL Private key check failed, or private key encrypted
-	exit 2
+	fatalF "Private key check failed, or private key encrypted"
     fi
 else
-    echo >&2 "FATAL Certificate check failed; certificate is invalid or not issued by FOGCA"
-    exit 2
+    fatal "Certificate check failed; certificate is invalid or not issued by FOGCA"
 fi
 
 echo >&2 INFO Credentials checks passed, creating OVPN
@@ -348,8 +352,7 @@ cat </dev/null >client.ovpn
 #     exit 3
 # fi
 if ! chmod 0600 client.ovpn ; then
-    echo >&2 FATAL Failed to restrict permissions on client.ovpn
-    exit 3
+    fatal "Failed to restrict permissions on client.ovpn"
 fi
 
 # Aside from the small race between the file being created and locked down, it
@@ -385,7 +388,6 @@ status connecting
 if ! openvpn --config client.ovpn --daemon ; then
     status failed
     echo >&2 FATAL failed to launch VPN client
-    exit 5
 fi
 
 # Now we try to get the IP address
@@ -456,8 +458,7 @@ function itoa(i) {
 # outputs both the input and the output.
 
 if [ $? -gt 0 ] || [ "x${SERVER}" = "x" ] ; then
-    echo >&2 "FATAL Failed to derive server's VPN address"
-    exit 5
+    fatal "Failed to derive server's VPN address"
 fi
 
 echo >&2 INFO Found server "${SERVER}"
@@ -473,8 +474,6 @@ echo >&2 INFO Found server "${SERVER}"
 PING_GOOD=0
 PING_BAD=0
 PING_UGLY=0
-
-stats () echo '{"good":"'$1'","noconn":"'$2'","error":"'$3'","total":"'`expr $1 + $2 + $3`'"}'
 
 
 while true
@@ -495,3 +494,4 @@ do sleep ${PING_INTERVAL}
        status "address error" "${IP}" "${SERVER}" "${STATS}"
    fi
 done
+
