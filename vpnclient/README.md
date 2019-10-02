@@ -131,6 +131,8 @@ The script makes use of the following environment variables:
 
 | Variable      | Required? | Description | Default |
 | :--- | :---: | :--- | :--- |
+| VPNINFO | no | File location to write metadata to | `/dev/null` |
+| PING_INTERVAL | no | Time (seconds) between pings for status  | 10 |
 | VPNSERVER     | no		| Location of VPN server | `vpnserver` |
 | CN   	   	   	| no |commonName for a host certificate request | hostname |
 | CAU_URL | no | CAU IP/port | no default |
@@ -157,6 +159,8 @@ As there is currently no trustworthy trust anchor distribution, some CA certific
 
 | Version | Descr. |
 | :---: | :--- |
+| 1.1.4 | Added writing status to shared volume for clients without network |
+| 1.1.3 | Doesn't exit on VPN failure; API should be used to query status |
 | 1.1.2 | Check vpnserver config; more status messages; running ping checks |
 | 1.1.1 | Status web service API |
 | 1.1.0 | Client designed to run on host's network |

@@ -5,8 +5,11 @@
 
 STATUSDIR=/usr/share/nginx/html/api
 STATUSFILE="${STATUSDIR}/get_vpn_ip"
+
+# Additional (file) location where status is written
+VPNINFO=${VPNINFO:-/dev/null}
 # Interval for pinging server to check whether we're connected
-PING_INTERVAL=10
+PING_INTERVAL=${PING_INTERVAL:-10}
 
 # END ADMINISTRATOR CUSTOMISABLE PARTS
 
@@ -17,7 +20,9 @@ PING_INTERVAL=10
 # "nextUpdate":"'`date --date "+ $PING_INTERVAL seconds" +"%Y%m%d %H:%M:%S%z"`
 
 status () (
-    echo '{"status":"'$1'","ip":"'$2'","server":"'$3'","lastUpdate":"'`date +"%Y%m%d %H:%M:%S%z"`'","stats":'$4',"msg":"'$5'"}' > ${STATUSFILE}
+    echo '{"status":"'$1'","ip":"'$2'","server":"'$3'","lastUpdate":"'`date +"%Y%m%d %H:%M:%S%z"`'","stats":'$4',"msg":"'$5'"}' > ${STATUSFILE} \
+	 && cat ${STATUSFILE} > ${VPNINFO}
+    
 )
 
 stats () echo '{"good":"'$1'","noconn":"'$2'","error":"'$3'","total":"'`expr $1 + $2 + $3`'"}'
@@ -54,6 +59,11 @@ else
     exit 1
 fi
 
+if [ "x${VPNINFO}" = "x/dev/null" ] ; then
+    echo >&2 INFO Not writing VPNINFO
+else
+    echo >&2 "Writing VPNINFO to ${VPNINFO}"
+fi
 
 
 status "Launching web svc" ""

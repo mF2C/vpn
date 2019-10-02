@@ -35,6 +35,7 @@ services:
     - vpnserver
     environment:
     - "CA_ENDPOINT=https://213.205.14.13:54443/certauths/rest/it2untrustedca"
+    - "VPNINFO=/vpninfo/vpnclient.status"
     cap_add:
     - NET_ADMIN
     networks:
@@ -43,8 +44,14 @@ services:
     - "40013:1999"
     volumes:
     - ./pkidata:/pkidata
+    - vpninfo:/vpninfo
+    healthcheck:
+#      start_period: 120s
+      interval: 30s
+      test: curl -s https://localhost:40013/api/get_vpn_ip |grep -q connected
 volumes:
-  vpnconfig:
+#  vpnconfig: {}
+  vpninfo: {}
 networks:
   vpnbridge:
     driver: bridge
