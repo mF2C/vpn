@@ -48,7 +48,7 @@ services:
     healthcheck:
 #      start_period: 120s
       interval: 30s
-      test: curl -s https://localhost:40013/api/get_vpn_ip |grep -q connected
+      test: grep -q connected /usr/share/nginx/html/api/get_vpn_ip
 volumes:
 #  vpnconfig: {}
   vpninfo: {}

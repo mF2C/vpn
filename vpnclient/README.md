@@ -7,23 +7,40 @@ building a test client.
 
 # Using the Script to Launch the Client #
 
-Currently the script is designed to run and exit with a non-zero
-return code if something went wrong; and exit with a zero return code
-if successful.
+The script runs and launches a VPN client, connecting to an already
+running server.  If run in production mode, it assumes a full mF2C
+environment (see below).  It also has a unit test mode, where it can
+bypass the standard mF2C agent flows and test itself.  Note that the
+default is production mode.
+
+If the container is run in host mode, the VPN network is exported to
+the host, but will **not update the host's routing table**.  This
+means that only packets addressed to a VPN address will route over the
+VPN.  Compare this to (say) a home user or corporate laptop
+environment where the VPN routes *every* packet through the VPN
+server.
+
+Note that in host mode, the port for the API cannot be remapped.
+
+If not run in host mode, the VPN will by default be available only
+inside the container.  This is useful for testing.
+
+The script will continue to run in case of failure, but the API will
+indicate the failure and the details of the failure, as described
+below.  The script only fails if it cannot launch the API.
+
+Status is also (optionally) written to a file location, which can be
+useful for other components which have not got access to the network.
 
 ## Exiting ##
 
 The exit code for the script are as follows:
 
-0. Success; the VPN client was started (but see below)
-1. Network device error, probably a permissions problem
-2. Credentials error; perhaps the pkidata was not set up correctly
-   prior to running the script.
-3. VPN client configuration error, again possibly a permissions
-   problem.
-4. (Currently unused.)
-5. (Currently unused) Failure to launch VPN client
+1. Error launching API (cannot provide status information)
 
+If successful, or there are failures after launching the API (see
+status messages below), the container keeps running, continuously
+updating (and timestamping) its status messages.
 
 ## API ##
 
@@ -43,7 +60,8 @@ What is returned is a JSON structure of the form
        "noconn" : "0"
     },
     "server" : "192.168.255.1",
-    "lastUpdate" : "20190927 09:46:07+0000"
+    "lastUpdate" : "20190927 09:46:07+0000",
+    "msg": ""
 }
 					  
 ```
@@ -67,6 +85,34 @@ order):
 * `connecting` - the client is in the process of connecting to a server
 * `failed` - the client has failed to connect to a server
 * `connected` - the client is connected.  This is the only status where `ip` is populated.
+* `address error` - a fatal error has occurred where the address could not be parsed. A "can't happen" type of error.
+* `no conn` - the client is connected to the VPN, but it has temporarily lost connection to the server.
+
+### Checking the status and the message ###
+
+Most of the messages above mark temporary stages in the clients
+initialisation process.  Only two states are final and (probably)
+irrecoverable: `failed` and `address error`.  If the status is
+`failed`, the "msg" entry should provide additional information and
+should be displayed to the user or administrator.
+
+
+# Dependencies #
+
+## Production mode dependencies ##
+
+If running in production mode, the client depends on the following external services:
+
+* The VPN server: within the container, the `vpnserver` name should resolve to the IP address of the VPN server.
+* `cau-client` is expected to generate a credential from a suitable CA and place it in a shared volume traditionally called `pkidata` (see Environment, below).
+
+## Unit Test Mode ##
+
+If running as a unit test, the client needs:
+
+* The VPN server, as above.
+* Either the CA endpoint, or the CAU IP address (see Environment, below).
+
 
 # Building Containers #
 
@@ -125,7 +171,7 @@ conventionally, the link is provided with `--link` when starting the
 client, or configured in the `docker-compose.yml` file.  Running a
 container by hand will likely need `--add-host`.
 
-# Environment #
+# Environment variables #
 
 The script makes use of the following environment variables:
 
