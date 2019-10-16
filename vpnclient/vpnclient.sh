@@ -15,17 +15,21 @@ PING_INTERVAL=${PING_INTERVAL:-10}
 
 
 # Note that sh function definitions are simpler than bash's
-#
+
+stats () echo '{"good":"'$1'","noconn":"'$2'","error":"'$3'","total":"'`expr $1 + $2 + $3`'"}'
+
 # This would be nice but doesn't work on all date implementations:
 # "nextUpdate":"'`date --date "+ $PING_INTERVAL seconds" +"%Y%m%d %H:%M:%S%z"`
 
 status () (
-    echo '{"status":"'$1'","ip":"'$2'","server":"'$3'","lastUpdate":"'`date +"%Y%m%d %H:%M:%S%z"`'","stats":'$4',"msg":"'$5'"}' > ${STATUSFILE} \
+    STATS="$4"
+    if [ "x$STATS" = "x" ] ; then
+	STATS=`stats 0 0 0`
+    fi
+    echo '{"status":"'$1'","ip":"'$2'","server":"'$3'","lastUpdate":"'`date +"%Y%m%d %H:%M:%S%z"`'","stats":'$STATS',"msg":"'$5'"}' > ${STATUSFILE} \
 	 && cat ${STATUSFILE} > ${VPNINFO}
     
 )
-
-stats () echo '{"good":"'$1'","noconn":"'$2'","error":"'$3'","total":"'`expr $1 + $2 + $3`'"}'
 
 
 # Continuously publish an error message, never returning
@@ -501,7 +505,7 @@ do sleep ${PING_INTERVAL}
    else
        PING_UGLY=`expr $PING_UGLY + 1`
        STATS=`stats $PING_GOOD $PING_BAD $PING_UGLY`
-       status "address error" "${IP}" "${SERVER}" "${STATS}"
+       status "failed" "${IP}" "${SERVER}" "${STATS}" "address parsing error"
    fi
 done
 

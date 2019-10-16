@@ -85,16 +85,15 @@ order):
 * `connecting` - the client is in the process of connecting to a server
 * `failed` - the client has failed to connect to a server
 * `connected` - the client is connected.  This is the only status where `ip` is populated.
-* `address error` - a fatal error has occurred where the address could not be parsed. A "can't happen" type of error.
 * `no conn` - the client is connected to the VPN, but it has temporarily lost connection to the server.
 
 ### Checking the status and the message ###
 
 Most of the messages above mark temporary stages in the clients
-initialisation process.  Only two states are final and (probably)
-irrecoverable: `failed` and `address error`.  If the status is
-`failed`, the "msg" entry should provide additional information and
-should be displayed to the user or administrator.
+initialisation process.  Only one states is final and (probably)
+unrecoverable: `failed`.  If the status is `failed`, the "msg" entry
+should provide additional information and should be displayed to the
+user or administrator.
 
 
 # Dependencies #
